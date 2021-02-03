@@ -720,6 +720,14 @@ func appendHex(b []byte, x uint16) []byte {
 	return append(b, digits[x&0xf])
 }
 
+// appendHexPad appends the fully padded hex string representation of x to b.
+func appendHexPad(b []byte, x uint16) []byte {
+	b = append(b, digits[x>>12])
+	b = append(b, digits[x>>8&0xf])
+	b = append(b, digits[x>>4&0xf])
+	return append(b, digits[x&0xf])
+}
+
 func (ip IP) string4() string {
 	const max = len("255.255.255.255")
 	ret := make([]byte, 0, max)
@@ -771,6 +779,43 @@ func (ip IP) string6() string {
 		}
 
 		ret = appendHex(ret, ip.v6u16(i))
+	}
+
+	if ip.z != z6noz {
+		ret = append(ret, '%')
+		ret = append(ret, ip.Zone()...)
+	}
+	return string(ret)
+}
+
+// StringExpanded returns the string form of the IP address ip, but IPv6
+// addresses are expanded with leading zeroes and no "::" compression. For
+// example, "2001:db8::1" becomes "2001:0db8:0000:0000:0000:0000:0000:0001".
+//
+// IPv4 and invalid IP addresses are formatted the same as when using IP.String.
+// See the documentation of IP.String for more details.
+func (ip IP) StringExpanded() string {
+	// Invalid and IPv4 are handled the same as in String.
+	switch ip.z {
+	case z0, z4:
+		return ip.String()
+	}
+
+	// Allocate enough space for the longest possible IPv6 address plus the
+	// exact length of the zone, if applicable.
+	max := len("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")
+	if ip.z != z6noz {
+		// Add space for % too.
+		max += 1 + len(ip.Zone())
+	}
+
+	ret := make([]byte, 0, max)
+	for i := uint8(0); i < 8; i++ {
+		if i > 0 {
+			ret = append(ret, ':')
+		}
+
+		ret = appendHexPad(ret, ip.v6u16(i))
 	}
 
 	if ip.z != z6noz {
