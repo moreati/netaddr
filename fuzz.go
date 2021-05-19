@@ -18,11 +18,10 @@ import (
 func Fuzz(b []byte) int {
 	s := string(b)
 
-	ip, err := ParseIP(s)
-	if err == nil {
-		checkStringParseRoundTrip(ip, parseIP)
-		checkEncoding(ip)
-	}
+	ip, _ := ParseIP(s)
+	checkStringParseRoundTrip(ip, parseIP)
+	checkEncoding(ip)
+
 	// Check that we match the standard library's IP parser, modulo zones.
 	if !strings.Contains(s, "%") {
 		stdip := net.ParseIP(s)
@@ -49,12 +48,18 @@ func Fuzz(b []byte) int {
 		checkStringParseRoundTrip(port, parseIPPort)
 		checkEncoding(port)
 	}
+	port = IPPortFrom(ip, 80)
+	checkStringParseRoundTrip(port, parseIPPort)
+	checkEncoding(port)
 
 	ipp, err := ParseIPPrefix(s)
 	if err == nil {
 		checkStringParseRoundTrip(ipp, parseIPPrefix)
 		checkEncoding(ipp)
 	}
+	ipp = IPPrefixFrom(ip, 8)
+	checkStringParseRoundTrip(ipp, parseIPPrefix)
+	checkEncoding(ipp)
 
 	return 0
 }
@@ -149,13 +154,25 @@ func parseIPPort(s string) (interface{}, error)   { return ParseIPPort(s) }
 func parseIPPrefix(s string) (interface{}, error) { return ParseIPPrefix(s) }
 
 func checkStringParseRoundTrip(x fmt.Stringer, parse func(string) (interface{}, error)) {
+	// Zero values tend to print something like "invalid IP", so it's OK if they don't round trip.
+	if z, ok := x.(interface{ IsZero() bool }); ok {
+		if z.IsZero() {
+			return
+		}
+	}
+	// Ditto for invalid values.
+	if v, ok := x.(interface{ Valid() bool }); ok {
+		if !v.Valid() {
+			return
+		}
+	}
 	s := x.String()
 	y, err := parse(s)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("s=%q err=%v", s, err))
 	}
 	if !reflect.DeepEqual(x, y) {
-		fmt.Printf("x=%#v y=%#v\n", x, y)
+		fmt.Printf("s=%q x=%#v y=%#v\n", s, x, y)
 		panic(fmt.Sprintf("%T round trip identity failure", x))
 	}
 	s2 := y.(fmt.Stringer).String()
