@@ -2743,3 +2743,19 @@ func TestIPPrefixString(t *testing.T) {
 		}
 	}
 }
+
+func TestInvalidIPPortString(t *testing.T) {
+	tests := []struct {
+		ipp  IPPort
+		want string
+	}{
+		{IPPort{}, "invalid IPPort"},
+		{IPPortFrom(IP{}, 80), "invalid IPPort"},
+	}
+
+	for _, tt := range tests {
+		if got := tt.ipp.String(); got != tt.want {
+			t.Errorf("(%#v).String() = %q want %q", tt.ipp, got, tt.want)
+		}
+	}
+}
